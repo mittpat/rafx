@@ -620,7 +620,7 @@ impl Renderer {
         let prepared_render_graph = renderer.pipeline_plugin.generate_render_graph(
             asset_manager,
             swapchain_image,
-            presentable_frame.rotating_frame_index(),
+            presentable_frame.incrementing_frame_index() % MAX_FRAMES_IN_FLIGHT,
             main_view.clone(),
             extract_resources,
             render_resources,

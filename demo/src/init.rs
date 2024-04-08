@@ -108,6 +108,7 @@ pub fn rendering_init(
     {
         let mut options = RafxApiDefVulkan::default();
         options.enable_debug_names = true;
+        options.validation_mode = rafx::api::RafxValidationMode::Disabled;
 
         // For vulkan on the modern pipeline, we need to enable shader_clip_distance. The default-enabled
         // options in rafx-api are fine for the basic pipeline

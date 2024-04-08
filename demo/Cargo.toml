@@ -52,6 +52,8 @@ winit = { version = "0.28" }
 
 [features]
 default = [
+    "rafx-vulkan",
+    
     # CI is set up to check without default features + basic-pipeline and default features. This ensures that both
     # pipelines are built by CI. If at some point we want to change the default, update the CI script.
     #

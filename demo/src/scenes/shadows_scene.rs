@@ -8,12 +8,29 @@ use rafx::rafx_visibility::{DepthRange, PerspectiveParameters, Projection};
 use rafx::render_features::RenderViewDepthRange;
 use rafx::renderer::{RenderViewMeta, ViewportsResource};
 use rafx::visibility::{ViewFrustumArc, VisibilityResource};
-use rafx_plugins::components::DirectionalLightComponent;
+use rafx_plugins::components::{DirectionalLightComponent, MeshComponent, VisibilityComponent};
 use rafx_plugins::components::{PointLightComponent, TransformComponent};
 use rand::{thread_rng, Rng};
 
+use rapier3d::prelude::*;
+
 pub(super) struct ShadowsScene {
     main_view_frustum: ViewFrustumArc,
+    ball_body_handle: RigidBodyHandle,
+    gravity: Vector<Real>,
+    integration_parameters: IntegrationParameters,
+    island_manager: IslandManager,
+    broad_phase: BroadPhase,
+    narrow_phase: NarrowPhase,
+    rigid_body_set: RigidBodySet,
+    collider_set: ColliderSet,
+    impulse_joint_set: ImpulseJointSet,
+    multibody_joint_set: MultibodyJointSet,
+    ccd_solver: CCDSolver,
+    query_pipeline: QueryPipeline,
+    physics_hooks: (),
+    event_handler: (),
+    physics_pipeline: PhysicsPipeline,
 }
 
 impl ShadowsScene {
@@ -21,6 +38,41 @@ impl ShadowsScene {
         world: &mut World,
         resources: &Resources,
     ) -> Self {
+
+
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+      
+        /* Create the ground. */
+        let collider = ColliderBuilder::cuboid(100.0, 0.1, 100.0).build();
+        collider_set.insert(collider);
+      
+        /* Create the bouncing ball. */
+        let rigid_body = RigidBodyBuilder::dynamic()
+                .translation(vector![0.0, 10.0, 0.0])
+                .build();
+        let collider = ColliderBuilder::ball(0.5).restitution(0.975).build();
+        let ball_body_handle = rigid_body_set.insert(rigid_body);
+        collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
+      
+        /* Create other structures necessary for the simulation. */
+        let gravity = vector![0.0, -9.81, 0.0];
+        let integration_parameters = IntegrationParameters::default();
+        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut island_manager = IslandManager::new();
+        let mut broad_phase = BroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut impulse_joint_set = ImpulseJointSet::new();
+        let mut multibody_joint_set = MultibodyJointSet::new();
+        let mut ccd_solver = CCDSolver::new();
+        let mut query_pipeline = QueryPipeline::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+
+
+
+
         let mut render_options = resources.get_mut::<RenderOptions>().unwrap();
         *render_options = RenderOptions::default_3d();
         super::util::setup_skybox(resources, "demo-assets://textures/skybox.basis");
@@ -65,7 +117,7 @@ impl ShadowsScene {
             //let mesh_render_objects = mesh_render_objects.read();
             let mut rng = thread_rng();
             for i in 0..250 {
-                let position = Vec3::new(((i / 9) * 3) as f32, ((i % 9) * 3) as f32, 0.0);
+                let position = Vec3::new(((i / 9) * 3) as f32, ((i % 9) * 3) as f32, 1.0);
                 let example_mesh = &example_meshes[i % example_meshes.len()];
                 //let asset_handle = &mesh_render_objects.get(&mesh_render_object).mesh;
 
@@ -128,7 +180,23 @@ impl ShadowsScene {
         let mut visibility_resource = resources.get_mut::<VisibilityResource>().unwrap();
         let main_view_frustum = visibility_resource.register_view_frustum();
 
-        ShadowsScene { main_view_frustum }
+        ShadowsScene { main_view_frustum, ball_body_handle,
+            physics_pipeline, 
+            gravity,
+            integration_parameters,
+            island_manager,
+            broad_phase,
+            narrow_phase,
+            rigid_body_set,
+            collider_set,
+            impulse_joint_set,
+            multibody_joint_set,
+            ccd_solver,
+            query_pipeline,
+            physics_hooks,
+            event_handler,        
+        
+         }
     }
 }
 
@@ -138,6 +206,62 @@ impl super::TestScene for ShadowsScene {
         world: &mut World,
         resources: &mut Resources,
     ) {
+
+{
+    self.physics_pipeline.step(
+        &self.gravity,
+        &self.integration_parameters,
+        &mut self.island_manager,
+        &mut self.broad_phase,
+        &mut self.narrow_phase,
+        &mut self.rigid_body_set,
+        &mut self.collider_set,
+        &mut self.impulse_joint_set,
+        &mut self.multibody_joint_set,
+        &mut self.ccd_solver,
+        Some(&mut self.query_pipeline),
+        &self.physics_hooks,
+        &self.event_handler,
+    );
+                }
+
+        let ball_body = &self.rigid_body_set[self.ball_body_handle];
+
+        let mut query = <(
+            Write<TransformComponent>,
+            Read<VisibilityComponent>,
+            Read<MeshComponent>,
+        )>::query();
+
+        for (transform, visibility, _mesh) in query.iter_mut(world) {
+            if transform.translation.z == -1f32
+            {
+                continue;
+            }
+            transform.translation =
+                glam::Vec3::new(transform.translation.x, transform.translation.y, ball_body.translation().y-0.5f32);
+
+            visibility.visibility_object_handle.set_transform(
+                transform.translation,
+                transform.rotation,
+                transform.scale,
+            );
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         super::util::add_light_debug_draw(&resources, &world);
 
         {

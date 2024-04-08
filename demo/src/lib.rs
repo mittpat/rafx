@@ -93,7 +93,7 @@ impl Drop for StatsAllocMemoryRegion<'_> {
 fn default_build_dir() -> PathBuf {
     PathBuf::from(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/build_data"
+        "/../demo-editor/data/build_data"
     ))
 }
 
